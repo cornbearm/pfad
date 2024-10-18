@@ -1,72 +1,85 @@
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.animation import FuncAnimation
-import matplotlib.transforms as transforms
 
 # Read CSV files
 data = pd.read_csv('latest_since_midnight_maxmin.csv')
 
+# Calculate the temperature difference
+data['Temperature Difference'] = data['Maximum Air Temperature Since Midnight(degree Celsius)'] - data['Minimum Air Temperature Since Midnight(degree Celsius)']
+
 # Setting up the chart
-fig, ax = plt.subplots(figsize=(10, 6))
-x = range(len(data))  # Use the index as the x-axis of the data
-lines, = ax.plot(x, data['Maximum Air Temperature Since Midnight(degree Celsius)'], 'r-', label='Max Temperature', marker='o')
-lines2, = ax.plot(x, data['Minimum Air Temperature Since Midnight(degree Celsius)'], 'b-', label='Min Temperature', marker='x')
-ax.set_xlim(0, len(data) - 1)
-ax.set_ylim(data['Minimum Air Temperature Since Midnight(degree Celsius)'].min() - 1, data['Maximum Air Temperature Since Midnight(degree Celsius)'].max() + 1)
-ax.set_title('Maximum and Minimum Air Temperature Since Midnight')
-ax.set_xlabel('Index')
-ax.set_ylabel('Temperature (degree Celsius)')
-ax.legend()
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+ax1.set_xlim(-1, 1)
+ax1.set_ylim(-1, 1)
+ax1.set_xticks([])
+ax1.set_yticks([])
 
-# Add a subgraph for dynamic shapes
-fig2, ax2 = plt.subplots(figsize=(3, 3), facecolor='white', frameon=False)
-ax2.set_xlim(-1, 1), ax2.set_xticks([])
-ax2.set_ylim(-1, 1), ax2.set_yticks([])
-
+# Add a circle
 circle1 = plt.Circle((0, 0), 0.1, color='r')
-ax2.add_patch(circle1)
-square = [[-0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.5, -0.5]]
-trans = (transforms.Affine2D().rotate_deg(45) + ax2.transData)
-square = plt.Polygon(square, fill=None, transform=trans)
-ax2.add_patch(square)
+ax1.add_patch(circle1)
 
+# Animation parameters
 max_loop = 100
 full_circle_radius = 1
-
+number_of_lines = 200
+scale = 30
 reverse = False
 
-# Initialization functions: background for charts
-def init():
-    lines.set_data([], [])
-    lines2.set_data([], [])
-    return lines, lines2
+# Setting Temperature Difference Chart
+x_bar = np.arange(len(data))
+bars = ax2.bar(x_bar, [0]*len(data), color='purple', label='Temperature Difference')
+ax2.set_ylim(0, data['Temperature Difference'].max() + 1)
+ax2.set_title('Temperature Difference (Max - Min)')
+ax2.set_xlabel('Index')
+ax2.set_ylabel('Temperature Difference (°C)')
+ax2.legend()
 
-# Update function: called once per frame
 def update(frame):
     global reverse
-    x_data = [i for i in range(frame+1)]
-    y1_data = data['Maximum Air Temperature Since Midnight(degree Celsius)'][:frame+1]
-    y2_data = data['Minimum Air Temperature Since Midnight(degree Celsius)'][:frame+1]
-    lines.set_data(x_data, y1_data)
-    lines2.set_data(x_data, y2_data)
-
     if frame % max_loop == 0:
         reverse = not reverse
+    
     if reverse:
         frame = frame % max_loop
     else:
         frame = max_loop - frame % max_loop
-
-    norm_frame = frame/max_loop
-    circle1.set_radius(full_circle_radius*norm_frame)
-    circle1.set_color(plt.cm.viridis(norm_frame))
-    transform = transforms.Affine2D().rotate_deg(90*norm_frame) + ax2.transData
-    square.set_transform(transform)
     
-    return lines, lines2, circle1, square
+    norm_frame = frame / max_loop
+    
+  # Update the circle
+    circle1.set_radius(full_circle_radius * norm_frame)
+    circle1.set_color(plt.cm.viridis(norm_frame))
+
+  # Generate X-values
+    x = np.linspace(-1, 1, int(norm_frame * max_loop))
+    y = np.cos(x * frame / scale)
+    z = np.sin(x * frame / scale)
+    
+    if reverse:
+        y = -y
+        z = -z
+
+# Drawing curves in animation
+    ax1.clear()
+    ax1.set_xlim(-1, 1)
+    ax1.set_ylim(-1, 1)
+    ax1.set_xticks([])
+    ax1.set_yticks([])
+    
+    ax1.plot(x, y, color=plt.cm.viridis(norm_frame), alpha=0.5)
+    ax1.plot(x, z, color=plt.cm.viridis(-norm_frame), alpha=0.5)
+
+    # Update bar chart colors
+    for i, bar in enumerate(bars):
+        bar.set_height(data['Temperature Difference'][i] * (frame / len(data)))
+        bar.set_color(plt.cm.viridis(i / len(bars))) # Use gradient colors
+
+    # Remove excess lines
+    while len(ax1.lines) > number_of_lines * norm_frame:
+        ax1.lines[0].remove()
 
 # Create animations
-ani = FuncAnimation(fig, update, frames=len(data), init_func=init, blit=True, interval=50)
-
+animation = FuncAnimation(fig, update, interval=10)
 plt.show()
